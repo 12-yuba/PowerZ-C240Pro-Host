@@ -1,0 +1,839 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Power-Z C240 Pro</title>
+<script src="echarts.min.js"></script>
+<style>
+/* ================= Fluent 2 设计令牌 ================= */
+:root{
+  --mica:#f3f3f3; --mica-2:#efefef;
+  --card:rgba(255,255,255,.72); --card-solid:#fbfbfb;
+  --stroke:rgba(0,0,0,.06); --stroke-strong:rgba(0,0,0,.1);
+  --text:rgba(0,0,0,.89); --text-2:rgba(0,0,0,.60); --text-3:rgba(0,0,0,.44);
+  --accent:#0f6cbd; --accent-h:#115ea3; --accent-soft:rgba(15,108,189,.10);
+  --ok:#0f7b0f; --bad:#c42b1c; --warn:#9d5d00;
+  --green:#0f7b0f; --red:#c42b1c; --blue:#0f6cbd;
+  --shadow:0 2px 4px rgba(0,0,0,.04),0 0 1px rgba(0,0,0,.06);
+  --r:8px;
+  --font:"Segoe UI Variable Text","Segoe UI",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+}
+body.dark{
+  --mica:#202020; --mica-2:#1c1c1c;
+  --card:rgba(255,255,255,.055); --card-solid:#2b2b2b;
+  --stroke:rgba(255,255,255,.08); --stroke-strong:rgba(255,255,255,.14);
+  --text:rgba(255,255,255,.94); --text-2:rgba(255,255,255,.66); --text-3:rgba(255,255,255,.48);
+  --accent:#60cdff; --accent-h:#4cc2ff; --accent-soft:rgba(96,205,255,.12);
+  --green:#6ccb5f; --red:#ff99a4; --blue:#60cdff;
+  --shadow:0 2px 4px rgba(0,0,0,.2),0 0 1px rgba(255,255,255,.05);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;min-height:0}
+body{
+  background:linear-gradient(180deg,var(--mica-2) 0%,var(--mica) 240px), var(--mica);
+  color:var(--text);font-family:var(--font);font-size:13px;line-height:1.45;
+  overflow:hidden;display:flex;flex-direction:column;
+}
+/* ================= 自绘标题栏 ================= */
+#tbar{display:none;height:40px;flex:0 0 40px;align-items:center;gap:10px;position:relative;z-index:210;
+  padding-left:14px;background:var(--mica-2);border-bottom:1px solid var(--stroke);user-select:none}
+#tbar .dot{width:9px;height:9px;border-radius:50%;background:var(--green)}
+#tbar .ttl{font-size:12.5px;color:var(--text-2);font-weight:600}
+#tbar .sp{flex:1}
+#tbar button{width:46px;height:40px;border:0;background:transparent;color:var(--text-2);
+  cursor:pointer;font-size:13px;border-radius:0;transition:background .12s}
+#tbar button:hover{background:var(--stroke-strong)}
+#tbar button.cls:hover{background:#c42b1c;color:#fff}
+/* ================= 应用框架 ================= */
+#app{flex:1;display:flex;min-height:0}
+#nav{width:200px;flex:0 0 200px;padding:8px;display:flex;flex-direction:column;gap:2px;
+  background:rgba(0,0,0,.014);border-right:1px solid var(--stroke)}
+body.dark #nav{background:rgba(255,255,255,.02)}
+.nav-item{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:6px;
+  cursor:pointer;color:var(--text-2);position:relative;transition:background .12s,color .12s}
+.nav-item:hover{background:var(--stroke-strong);color:var(--text)}
+.nav-item.on{background:var(--card);color:var(--text);font-weight:600;box-shadow:var(--shadow)}
+.nav-item.on::before{content:"";position:absolute;left:0;top:12px;width:3px;height:16px;
+  border-radius:2px;background:var(--accent)}
+.nav-item svg{width:17px;height:17px;flex:0 0 17px}
+.nav-item .badge{margin-left:auto;font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.nav-sp{flex:1}
+/* ================= 内容区 ================= */
+#main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+#bar{flex:0 0 56px;display:flex;align-items:center;gap:8px;padding:0 20px;
+  border-bottom:1px solid var(--stroke)}
+#bar .title{font-size:16px;font-weight:600}
+#bar .sub{font-size:12px;color:var(--text-3)}
+#pages{flex:1;overflow:auto;padding:16px 20px 24px;min-height:0}   /* 无 min-height:0 时内容会撑高窗口，导致无法缩小/最大化时高度被锁死 */
+.page{display:none;flex-direction:column;gap:14px;max-width:1180px}
+.page.on{display:flex}
+/* ================= 卡片 ================= */
+.card{background:var(--card);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border:1px solid var(--stroke);border-radius:var(--r);box-shadow:var(--shadow);padding:16px}
+.card h2{margin:0 0 12px;font-size:13px;font-weight:600;color:var(--text-2)}
+.card h2 .muted{font-weight:400;color:var(--text-3)}
+/* ================= 指标卡 ================= */
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.metric{position:relative;overflow:hidden}
+.metric .lb{font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:6px}
+.metric .lb i{width:8px;height:8px;border-radius:50%;font-style:normal}
+.metric .val{font-size:34px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+  margin-top:6px;line-height:1.05}
+.metric .val small{font-size:15px;font-weight:500;color:var(--text-2);margin-left:2px}
+.metric .spark{position:absolute;right:0;bottom:0;left:0;height:38px;opacity:.9}
+/* ================= 按钮 ================= */
+button{font-family:var(--font);font-size:13px;border-radius:4px;cursor:pointer;
+  border:1px solid var(--stroke-strong);background:var(--card-solid);color:var(--text);
+  padding:5px 12px;min-height:30px;transition:background .12s,border-color .12s}
+button:hover{background:var(--stroke-strong)}
+button.pri{background:var(--accent);border-color:transparent;color:#fff}
+button.pri:hover{background:var(--accent-h)}
+body.dark button.pri{color:#000}
+button.gh{background:transparent;border-color:transparent;color:var(--text-2)}
+button.gh:hover{background:var(--stroke-strong);color:var(--text)}
+.seg{display:flex;gap:4px;padding:3px;border-radius:6px;background:rgba(0,0,0,.05);
+  border:1px solid var(--stroke)}
+body.dark .seg{background:rgba(255,255,255,.05)}
+.seg button{border:0;background:transparent;min-height:26px;padding:3px 14px;color:var(--text-2)}
+.seg button.on{background:var(--card-solid);color:var(--text);box-shadow:var(--shadow);font-weight:600}
+/* ================= 状态胶囊 ================= */
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;
+  font-size:12px;background:var(--stroke-strong);color:var(--text-2)}
+.chip.ok{background:rgba(15,123,15,.12);color:var(--ok)}
+.chip.no{background:rgba(196,43,28,.10);color:var(--bad)}
+.chip i{width:7px;height:7px;border-radius:50%;background:currentColor}
+/* ================= 表格 ================= */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--stroke)}
+th{font-size:12px;color:var(--text-2);font-weight:500;background:rgba(0,0,0,.02)}
+body.dark th{background:rgba(255,255,255,.03)}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.hl td{background:var(--accent-soft)}
+.tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;
+  background:var(--stroke-strong);color:var(--text-2)}
+.tag.pps{background:var(--accent-soft);color:var(--accent)}
+.tag.tx{background:rgba(196,43,28,.10);color:var(--bad)}
+.tag.rx{background:rgba(15,123,15,.12);color:var(--ok)}
+/* ================= 曲线 ================= */
+#chart{width:100%;height:340px}
+.offset{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)}
+.offset input{width:62px;padding:3px 6px;border-radius:4px;border:1px solid var(--stroke-strong);
+  background:var(--card-solid);color:var(--text);font-family:var(--font);font-size:12px}
+/* ================= 空状态 ================= */
+.empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:22px 10px;color:var(--text-3)}
+.empty svg{width:30px;height:30px;opacity:.5}
+.empty .t{font-size:13px;color:var(--text-2)}
+.empty .d{font-size:12px;max-width:430px;text-align:center;line-height:1.5}
+/* ================= 日志流 ================= */
+.logbox{max-height:260px;overflow:auto;border:1px solid var(--stroke);border-radius:6px;
+  background:rgba(0,0,0,.02)}
+body.dark .logbox{background:rgba(255,255,255,.03)}
+.logrow{display:flex;gap:10px;padding:5px 10px;border-bottom:1px solid var(--stroke);
+  font-size:12px;font-variant-numeric:tabular-nums;align-items:center}
+.logrow:last-child{border-bottom:0}
+.logrow .h{color:var(--text-3);flex:0 0 52px}
+.mono{font-family:ui-monospace,Consolas,"Cascadia Mono",monospace;font-size:11.5px}
+.errbar{display:none;background:rgba(196,43,28,.10);color:var(--bad);
+  padding:8px 20px;font-size:12.5px}
+/* ---- 无边框窗口的自绘缩放手柄 ---- */
+.rsz{position:fixed;z-index:120}
+  .rsz.n{top:40px;left:8px;right:8px;height:5px;cursor:n-resize}
+.rsz.s{bottom:0;left:8px;right:8px;height:5px;cursor:s-resize}
+.rsz.e{top:8px;bottom:8px;right:0;width:5px;cursor:e-resize}
+.rsz.w{top:8px;bottom:8px;left:0;width:5px;cursor:w-resize}
+  .rsz.ne{top:40px;right:0;width:12px;height:12px;cursor:ne-resize}
+  .rsz.nw{top:40px;left:0;width:12px;height:12px;cursor:nw-resize}
+.rsz.se{bottom:0;right:0;width:12px;height:12px;cursor:se-resize}
+.rsz.sw{bottom:0;left:0;width:12px;height:12px;cursor:sw-resize}
+#snapHint{position:fixed;z-index:130;display:none;border:2px solid var(--accent);
+  border-radius:8px;background:var(--accent-soft);pointer-events:none;
+  transition:all .12s ease}
+  /* ---- PD 报文分析（仿 lapower） ---- */
+  .pdbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .pdbar select{padding:4px 8px;border-radius:4px;border:1px solid var(--stroke-strong);
+    background:var(--card-solid);color:var(--text);font-family:var(--font);font-size:12px}
+  .chk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2);
+    cursor:pointer;user-select:none}
+  .chk input{accent-color:var(--accent);cursor:pointer}
+  .pdwrap{max-height:300px;overflow:auto;border:1px solid var(--stroke);border-radius:6px;
+    background:rgba(0,0,0,.015)}
+  body.dark .pdwrap{background:rgba(255,255,255,.02)}
+  table.pd{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+  table.pd th{position:sticky;top:0;z-index:2;background:var(--card-solid);
+    border-bottom:1px solid var(--stroke-strong);font-size:11.5px}
+  table.pd td{padding:4px 8px;border-bottom:1px solid var(--stroke);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+  table.pd tr:hover td{background:var(--stroke-strong)}
+  table.pd td.bar{border-left:3px solid transparent;padding-left:6px}
+  .c-cap{color:#0f6cbd} .c-req{color:#7b4fbf} .c-ack{color:#0f7b0f} .c-rdy{color:#0f7b0f}
+  .c-vdm{color:#9d5d00} .c-gc{color:var(--text-3)} .c-err{color:#c42b1c}
+  tr.cap td.bar{border-left-color:#0f6cbd}
+  tr.req td.bar{border-left-color:#7b4fbf}
+  tr.ack td.bar{border-left-color:#0f7b0f}
+  tr.vdm td.bar{border-left-color:#9d5d00}
+  tr.gc  td.bar{border-left-color:rgba(128,128,128,.4)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,.22);border-radius:5px;border:3px solid transparent;background-clip:content-box}
+body.dark ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body class="light">
+
+<div id="tbar">
+  <span class="dot"></span><span class="ttl">Power-Z C240 Pro · PC 上位机</span>
+  <span class="sp"></span>
+  <button title="最小化" onclick="window.pywebview&&window.pywebview.api.win_min()">&#8211;</button>
+  <button title="最大化/还原" onclick="window.pywebview&&window.pywebview.api.win_max()">&#9633;</button>
+  <button class="cls" title="关闭" onclick="window.pywebview&&window.pywebview.api.win_close()">&#10005;</button>
+</div>
+
+<div id="errbar"></div>
+<div id="snapHint"></div>
+
+<div id="app">
+  <nav id="nav">
+    <div class="nav-item on" data-p="dash">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/></svg>
+      <span>仪表</span></div>
+    <div class="nav-item" data-p="pd">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+      <span>PD 分析</span><span class="badge" id="navPd"></span></div>
+    <div class="nav-item" data-p="exp">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>
+      <span>数据导出</span></div>
+    <div class="nav-sp"></div>
+    <div class="nav-item" id="btnTheme">
+      <span id="themeIcon"></span><span id="themeTxt">切换主题</span></div>
+    <div class="nav-item" data-p="set">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+      <span>关于</span></div>
+  </nav>
+
+  <div id="main">
+    <div id="bar">
+      <span class="title" id="pageTitle">仪表</span>
+      <span class="chip no" id="st"><i></i><span>未连接</span></span>
+      <span class="sub" id="devTxt"></span>
+      <span style="flex:1"></span>
+      <span class="sub">采样率</span>
+      <div class="seg" id="rateSeg">
+        <button data-r="1">1SPS</button><button data-r="2">10SPS</button><button data-r="3" class="on">20SPS</button>
+      </div>
+      <button class="gh" id="btnScan">扫描设备</button>
+    </div>
+
+    <div id="pages">
+
+      <!-- ============ 仪表 ============ -->
+      <section class="page on" id="p-dash">
+        <div class="metrics">
+          <div class="card metric">
+            <div class="lb"><i style="background:var(--green)"></i>电压</div>
+            <div class="val" style="color:var(--green)"><span id="v">0.000</span><small>V</small></div>
+            <canvas class="spark" id="spV"></canvas>
+          </div>
+          <div class="card metric">
+            <div class="lb"><i style="background:var(--red)"></i>电流 <span id="adir" style="color:var(--text-3)"></span></div>
+            <div class="val" style="color:var(--red)"><span id="a">0.000</span><small>A</small></div>
+            <canvas class="spark" id="spA"></canvas>
+          </div>
+          <div class="card metric">
+            <div class="lb"><i style="background:var(--blue)"></i>功率</div>
+            <div class="val" style="color:var(--blue)"><span id="w">0.000</span><small>W</small></div>
+            <canvas class="spark" id="spW"></canvas>
+          </div>
+        </div>
+
+        <div class="card" style="display:flex;gap:28px;flex-wrap:wrap">
+          <div><div style="color:var(--text-2);font-size:12px">计时</div>
+               <div style="font-size:20px;font-weight:600" id="tm">--</div></div>
+          <div><div style="color:var(--text-2);font-size:12px">能量</div>
+               <div style="font-size:20px;font-weight:600"><span id="en">0</span> <small style="font-size:12px;color:var(--text-3)">mWh</small></div></div>
+          <div><div style="color:var(--text-2);font-size:12px">PD 报文</div>
+               <div style="font-size:20px;font-weight:600" id="pdCount">0</div></div>
+          <div><div style="color:var(--text-2);font-size:12px">设备</div>
+               <div class="mono" style="font-size:15px;padding-top:3px" id="devMac">--</div></div>
+        </div>
+        <div class="card">
+          <h2>实时曲线 <span class="muted" id="tm2">· --</span>
+            <span style="float:right;font-weight:400">
+              <span class="offset">偏移 电压<input id="kvV" type="number" step="0.05" min="1">
+              电流<input id="kvA" type="number" step="0.1" min="1">
+              功率<input id="kvW" type="number" step="0.1" min="1"></span>
+            </span></h2>
+          <div id="chart"></div>
+        </div>      </section>
+
+      <!-- ============ 曲线 ============ -->
+
+      <!-- ============ PD 分析 ============ -->
+      <section class="page" id="p-pd">
+        <div class="card">
+          <h2>充电器 PD 能力（PDO）<span class="muted"> · 电源广播的固定 / PPS 档位</span></h2>
+          <div id="pdo"></div>
+        </div>
+        <div class="card">
+          <h2>线缆 eMarker<span class="muted"> · 数据线内的电子标签</span></h2>
+          <div id="emk"></div>
+        </div>
+        <div class="card">
+          <h2>PD 报文分析 <span class="muted" id="pdCount2"></span></h2>
+          <div class="pdbar">
+            <button id="pdPause" class="gh">⏸ 暂停展示</button>
+            <button id="pdClear" class="gh">🗑 清空显示</button>
+            <label class="chk"><input type="checkbox" id="pdAuto" checked>自动滚动</label>
+            <label class="chk"><input type="checkbox" id="pdHideGc" checked>隐藏 GoodCRC</label>
+            <select id="pdFilter"><option value="all">全部类型</option></select>
+            <span style="flex:1"></span>
+            <span class="sub" id="pdTotal"></span>
+          </div>
+          <div class="pdwrap">
+            <table class="pd">
+              <colgroup><col style="width:38px"><col style="width:74px"><col style="width:52px">
+                <col style="width:150px"><col style="width:64px"><col style="width:40px">
+                <col style="width:130px"><col></colgroup>
+              <thead><tr><th>#</th><th>时间</th><th>SOP</th><th>消息</th><th>方向</th>
+                <th>对象</th><th>V / I</th><th>说明</th></tr></thead>
+              <tbody id="pdBody"></tbody>
+            </table>
+          </div>
+          <div style="margin-top:8px;color:var(--text-3);font-size:11.5px">
+            "暂停展示"只冻结表格显示，底层采集继续；恢复后会把暂停期间的报文一次性补上。</div>
+        </div>
+      </section>
+
+      <!-- ============ 导出 ============ -->
+      <section class="page" id="p-exp">
+        <div class="card">
+          <h2>数据导出</h2>
+          <p style="margin:0 0 14px;color:var(--text-2);font-size:12.5px;max-width:640px">
+            导出内容为<b>本次服务启动以来</b>的会话数据。时间轴以本地单调时钟从 0 起，
+            并同时记录本地绝对时间与设备计时，便于交叉核对。</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <button class="pri" id="btnExpS">导出曲线数据 (.xlsx)</button>
+            <span class="sub" id="expInfoS" style="color:var(--text-3)"></span>
+            <button id="btnExpP">导出 PD 报文 (.xlsx)</button>
+            <span class="sub" id="expInfo" style="color:var(--text-3)"></span>
+          </div>
+          <div style="margin-top:14px;color:var(--text-3);font-size:12px">
+            点击后由浏览器弹出保存框，可自选保存位置并重命名；文件在内存中生成，不会在程序目录留下副本。</div>
+        </div>
+        <div class="card">
+          <h2>本次会话</h2>
+          <div id="sess" style="color:var(--text-2);font-size:12.5px">等待设备连接…</div>
+        </div>
+      </section>
+
+      <!-- ============ 关于 ============ -->
+      <section class="page" id="p-set">
+        <div class="card">
+          <h2>关于</h2>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+            <div><b>Power-Z C240 Pro · PC 上位机</b> v1.1</div>
+            <div style="color:var(--text-2)">通过蓝牙读取设备上报的电压/电流/功率采样、PD 报文与线缆信息。</div>
+            <div style="color:var(--text-3);font-size:12px">
+              协议依据微信小程序反编译 + 蓝牙 HCI 抓包双向验证；设备识别使用 GATT 服务 UUID，不依赖 MAC。</div>
+            <div style="color:var(--text-3);font-size:12px">本软件只读取数据，不修改设备固件。</div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>提示</h2>
+          <ul style="margin:0;padding-left:18px;color:var(--text-2);font-size:12.5px;line-height:1.9">
+            <li>PDO / eMarker 仅在 PD 协商时上报；若设备已进入稳定供电或固定档位输出，该两项为空属正常。</li>
+            <li>扫不到设备时，先断开手机上的小程序（设备为单连接，被占用时会停止广播）。</li>
+            <li>曲线中的"偏移"为坐标量程系数，仅影响显示分层，不改变真实数值。</li>
+          </ul>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+var API = (location.protocol === 'file:') ? 'http://127.0.0.1:31416' : '';
+
+/* ---------------- 主题 ---------------- */
+var ICON_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">'
+  + '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5'
+  + 'M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>';
+var ICON_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">'
+  + '<path d="M21 13a9 9 0 1 1-10-10 7 7 0 0 0 10 10z"/></svg>';
+function chartVisible(){
+  var el = document.getElementById('chart');
+  return !!(el && el.offsetParent !== null);
+}
+function setTheme(t){
+  document.body.className = (t === 'dark') ? 'dark' : 'light';
+  try { localStorage.setItem('pz_theme', t); } catch(e) {}
+  var ic = document.getElementById('themeIcon'), tx = document.getElementById('themeTxt');
+  if (ic){ ic.innerHTML = (t === 'dark') ? ICON_MOON : ICON_SUN; }
+  if (tx){ tx.textContent = (t === 'dark') ? '切换到日间' : '切换到夜间'; }
+  // 只有图表可见时才 resize：页面隐藏时容器尺寸为 0，
+  // 此时 resize 会让 ECharts 记住错误尺寸，切回来就成压扁的线
+  if (chartVisible()){
+    setTimeout(function(){ if (window.chart) chart.resize(); }, 40);
+  }
+}
+try { setTheme(localStorage.getItem('pz_theme') || 'light'); } catch(e) {}
+document.getElementById('btnTheme').onclick = function(){
+  setTheme(document.body.classList.contains('dark') ? 'light' : 'dark');
+};
+
+/* ---------------- 页面切换 ---------------- */
+var TITLES = {dash:'仪表', pd:'PD 分析', exp:'数据导出', set:'关于'};
+document.querySelectorAll('.nav-item[data-p]').forEach(function(el){
+  el.onclick = function(){
+    document.querySelectorAll('.nav-item[data-p]').forEach(function(x){x.classList.remove('on');});
+    el.classList.add('on');
+    var p = el.dataset.p;
+    document.querySelectorAll('.page').forEach(function(s){s.classList.remove('on');});
+    document.getElementById('p-' + p).classList.add('on');
+    document.getElementById('pageTitle').textContent = TITLES[p];
+    if (p === 'dash' && window.chart) setTimeout(function(){ chart.resize(); }, 30);
+  };
+});
+
+/* ---------------- 图表 ---------------- */
+if (typeof echarts === 'undefined'){
+  document.body.insertAdjacentHTML('afterbegin',
+    '<div style="background:#fff2e8;color:#fa541c;padding:10px 20px">ECharts 加载失败：请确认 echarts.min.js 与本文件同目录</div>');
+}
+var chart = (typeof echarts !== 'undefined')
+  ? echarts.init(document.getElementById('chart'))
+  : {setOption(){}, getOption(){return {xAxis:[{data:[]}],series:[{data:[]},{data:[]},{data:[]}]}}, resize(){}};
+
+var K = {v: 1.06, a: 2.60, w: 4.20};
+try { var _s = JSON.parse(localStorage.getItem('pz_K') || 'null'); if (_s && _s.v) Object.assign(K, _s); } catch(e) {}
+
+function grad(r,g,b){
+  return new echarts.graphic.LinearGradient(0,0,0,1,[
+    {offset:0,color:'rgba('+r+','+g+','+b+',0.26)'},
+    {offset:1,color:'rgba('+r+','+g+','+b+',0.02)'}]);
+}
+var COL = {v:[15,123,15], a:[196,43,28], w:[15,108,189]};
+
+chart.setOption({
+  animation:false,
+  tooltip:{trigger:'axis',confine:true,textStyle:{fontSize:12}},
+  legend:{data:['电压(V)','电流(A)','功率(W)'],top:0,left:'center',
+    itemHeight:8,itemWidth:14,textStyle:{fontSize:11}},
+  grid:{left:52,right:96,top:34,bottom:22},
+  xAxis:{type:'category',data:[],boundaryGap:false,axisLabel:{fontSize:10}},
+  yAxis:[
+    {type:'value',min:0,position:'left',axisLabel:{fontSize:10},splitLine:{show:true,lineStyle:{opacity:.5}}},
+    {type:'value',min:0,position:'right',axisLabel:{fontSize:10},splitLine:{show:false}},
+    {type:'value',min:0,position:'right',offset:48,axisLabel:{fontSize:10},splitLine:{show:false}}
+  ],
+  series:[
+    {name:'电压(V)',type:'line',showSymbol:false,smooth:0.2,lineStyle:{width:1.6},color:'#0f7b0f',
+     areaStyle:{color:grad.apply(null,COL.v)},yAxisIndex:0,data:[]},
+    {name:'电流(A)',type:'line',showSymbol:false,smooth:0.2,lineStyle:{width:1.6},color:'#c42b1c',
+     areaStyle:{color:grad.apply(null,COL.a)},yAxisIndex:1,data:[]},
+    {name:'功率(W)',type:'line',showSymbol:false,smooth:0.2,lineStyle:{width:1.6},color:'#0f6cbd',
+     areaStyle:{color:grad.apply(null,COL.w)},yAxisIndex:2,data:[]}
+  ]
+});
+
+var MAXP = 2000, xs=[], dv=[], da=[], dw=[], n=0;
+var mx = {v:0.001, a:0.001, w:0.001};
+
+function niceMax(v,k){
+  var m = Math.max(v*k,1e-6), p = Math.pow(10,Math.floor(Math.log10(m)));
+  var st = [1,1.5,2,2.5,3,4,5,6,8,10];
+  for (var i=0;i<st.length;i++) if (st[i]*p >= m) return +(st[i]*p).toFixed(4);
+  return 10*p;
+}
+function applyK(){
+  try { localStorage.setItem('pz_K', JSON.stringify(K)); } catch(e){}
+  chart.setOption({yAxis:[{max:niceMax(mx.v,K.v)},{max:niceMax(mx.a,K.a)},{max:niceMax(mx.w,K.w)}]});
+  ['v','a','w'].forEach(function(k){ var el=document.getElementById('kv'+k.toUpperCase()); if(el) el.value=K[k]; });
+}
+['v','a','w'].forEach(function(k){
+  var el = document.getElementById('kv'+k.toUpperCase());
+  if (el) el.onchange = function(){ K[k] = +this.value || 1; applyK(); };
+});
+applyK();
+
+function pushSamples(pts){
+  if (!pts || !pts.length) return;
+  for (var i=0;i<pts.length;i++){
+    var v = pts[i][0]/1000, a = Math.abs(pts[i][1])/1000;
+    xs.push(n++); dv.push(+v.toFixed(3)); da.push(+a.toFixed(3)); dw.push(+(v*a).toFixed(3));
+    if (v>mx.v) mx.v=v; if (a>mx.a) mx.a=a; if (v*a>mx.w) mx.w=v*a;
+  }
+  while (xs.length>MAXP){ xs.shift(); dv.shift(); da.shift(); dw.shift(); }
+  chart.setOption({
+    xAxis:{data:xs},
+    yAxis:[{max:niceMax(mx.v,K.v)},{max:niceMax(mx.a,K.a)},{max:niceMax(mx.w,K.w)}],
+    series:[{data:dv},{data:da},{data:dw}]
+  });
+}
+
+/* ---------------- 迷你 sparkline ---------------- */
+function drawSpark(id, data, rgb){
+  var c = document.getElementById(id); if (!c) return;
+  var dpr = window.devicePixelRatio || 1;
+  var w = c.clientWidth, h = c.clientHeight; if (!w||!h) return;
+  c.width = w*dpr; c.height = h*dpr;
+  var g = c.getContext('2d'); g.scale(dpr,dpr);
+  g.clearRect(0,0,w,h);
+  if (data.length < 2) return;
+  var mn = Math.min.apply(null,data), mxv = Math.max.apply(null,data);
+  if (mxv - mn < 1e-9){ mxv = mn + 1; }
+  var pad = 3, step = w / Math.max(data.length-1,1);
+  g.beginPath();
+  for (var i=0;i<data.length;i++){
+    var x = w - (data.length-1-i)*step;
+    var y = h-pad - (data[i]-mn)/(mxv-mn)*(h-pad*2);
+    if (i===0) g.moveTo(x,y); else g.lineTo(x,y);
+  }
+  g.strokeStyle = 'rgba('+rgb+',0.6)'; g.lineWidth = 1.4; g.stroke();
+  g.lineTo(w,h); g.lineTo(0,h); g.closePath();
+  var lg = g.createLinearGradient(0,0,0,h);
+  lg.addColorStop(0,'rgba('+rgb+',0.18)'); lg.addColorStop(1,'rgba('+rgb+',0)');
+  g.fillStyle = lg; g.fill();
+}
+var SPV=[], SPA=[], SPW=[];
+setInterval(function(){
+  drawSpark('spV', SPV.slice(-240), COL.v.join(','));
+  drawSpark('spA', SPA.slice(-240), COL.a.join(','));
+  drawSpark('spW', SPW.slice(-240), COL.w.join(','));
+}, 300);
+
+/* ---------------- 数据渲染 ---------------- */
+var lastRdo = null;
+
+function esc(s){ return String(s).replace(/[&<>]/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+
+function renderPdo(pdos){
+  if (!pdos || !pdos.length){
+    return '<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">'
+      + '<path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg>'
+      + '<div class="t">尚未收到 PD 能力报文</div>'
+      + '<div class="d">PDO 是充电器在 PD 协商时广播的。若设备已稳定供电或正在固定档位输出，'
+      + '此项为空属正常；重新插拔一次即可触发。</div></div>';
+  }
+  var sel = (lastRdo && !lastRdo.ambiguous) ? lastRdo.pdo_index : -1;
+  var h = '<table><tr><th style="width:34px">#</th><th>类型</th><th class="num">电压</th><th class="num">电流</th></tr>';
+  pdos.forEach(function(p,i){
+    var on = (i+1===sel), bg = on?' class="hl"':'', mk = on?' ← 实际请求':'';
+    if (p.kind === 'Fixed'){
+      h += '<tr'+bg+'><td>'+(i+1)+'</td><td><span class="tag">Fixed'+mk+'</span></td>'
+        + '<td class="num">'+p.volt.toFixed(2)+' V</td><td class="num">'+p.amp.toFixed(2)+' A</td></tr>';
+    } else {
+      h += '<tr'+bg+'><td>'+(i+1)+'</td><td><span class="tag pps">APDO(PPS)'+mk+'</span></td>'
+        + '<td class="num">'+p.volt_min.toFixed(1)+' – '+p.volt_max.toFixed(1)+' V</td>'
+        + '<td class="num">'+p.amp.toFixed(2)+' A</td></tr>';
+    }
+  });
+  return h + '</table>' + rdoLine();
+}
+
+function rdoLine(){
+  if (!lastRdo) return '';
+  var r = lastRdo;
+  if (r.ambiguous){
+    return '<div style="margin-top:10px;padding:8px 10px;background:rgba(157,93,0,.10);'
+      + 'border-radius:6px;font-size:12px;color:var(--warn)">'
+      + 'RDO <b class="mono">0x'+r.raw.slice(2)+'</b> · 请求 PDO #'+r.pdo_index+' · <b>类型未确认</b><br>'
+      + '<span style="color:var(--text-3)">需先收到 Source_Capabilities 才能判定该档是 Fixed 还是 PPS；'
+      + '若按 Fixed 解为 '+r.if_fixed.op_current.toFixed(2)+'A，若按 PPS 解为 '
+      + r.if_pps.volt.toFixed(2)+'V @ '+r.if_pps.amp.toFixed(2)+'A。</span></div>';
+  }
+  var cur = (r.pdo_kind && r.pdo_kind.indexOf('APDO')===0)
+    ? r.volt.toFixed(2)+' V @ '+r.amp.toFixed(2)+' A'
+    : r.op_current.toFixed(2)+' A（上限 '+r.max_current.toFixed(2)+' A）';
+  var age = (window.__rdoAge != null)
+    ? ' <span style="color:var(--text-3)">· 收到于 ' + (window.__rdoAge >= 60
+        ? Math.floor(window.__rdoAge/60) + ' 分 ' + Math.round(window.__rdoAge%60) + ' 秒'
+        : Math.round(window.__rdoAge) + ' 秒') + ' 前</span>'
+    : '';
+  return '<div style="margin-top:10px;padding:8px 10px;background:var(--accent-soft);border-radius:6px;'
+    + 'font-size:12px">下游实际请求：<b>PDO #'+r.pdo_index+' · '+esc(r.pdo_kind)+'</b> · '+cur
+    + (r.capability_mismatch?' <span style="color:var(--bad)">· 能力不匹配</span>':'')
+    + ' <span style="color:var(--text-3)" class="mono">(RDO 0x'+r.raw.slice(2)+')</span>'
+    + age + '<br><span style="color:var(--text-3);font-size:11.5px">RDO 是 PD 协商时下发的请求，'
+    + '仅在重新插拔/协商时刷新；当前实时工作点请看仪表页。</span></div>';
+}
+
+function renderEmk(e){
+  if (!e){
+    return '<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">'
+      + '<path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/><path d="M9 12h6M9 15h6"/></svg>'
+      + '<div class="t">未读取到 Emarker 信息</div>'
+      + '<div class="d">eMarker 信息来自线缆内的电子标签。只有带 eMarker 芯片的数据线'
+      + '（如 5A / 240W 线）才会响应；普通 3A 线没有此芯片。</div></div>';
+  }
+  var c = e.passiveCableVdo || {};
+  function row(k,v){ return '<div style="display:flex;justify-content:space-between;padding:6px 0;'
+    + 'border-bottom:1px solid var(--stroke)"><span style="color:var(--text-2)">'+k+'</span>'
+    + '<b>'+esc(v)+'</b></div>'; }
+  return row('厂商 VID', e.vendorId)
+    + row('线缆类型', e.cableType)
+    + row('供电能力', (c.maxVbusVoltage||'-')+' '+(c.vbusCurrentHandlingCapability||''))
+    + row('速率规格', c.usbHighestSpeed || '-')
+    + row('EPR 支持', c.eprModeCapable ? '是' : '否')
+    + row('Product', e.productRaw)
+    + row('Cable VDO', c.raw || '-')
+    + row('SVID', e.svid);
+}
+
+/* ---- PD 报文分析表（仿 lapower：可暂停展示、采集不停） ---- */
+var pdPaused = false, pdBuf = [];
+function pdCls(t){
+  if (t === 'Source_Capabilities') return 'cap';
+  if (t === 'Request') return 'req';
+  if (t === 'Accept' || t === 'PS_RDY') return 'ack';
+  if (t === 'Vendor_Defined') return 'vdm';
+  if (t === 'GoodCRC') return 'gc';
+  return '';
+}
+function pdFilterOptions(){
+  var sel = document.getElementById('pdFilter'), cur = sel.value;
+  var types = {};
+  pdBuf.forEach(function(x){ types[x.type] = 1; });
+  var opts = ['<option value="all">全部类型</option>'];
+  Object.keys(types).sort().forEach(function(t){
+    opts.push('<option value="'+t+'">'+esc(t)+'</option>');
+  });
+  sel.innerHTML = opts.join('');
+  sel.value = (types[cur] || cur === 'all') ? cur : 'all';
+  window.__pdFilterVal = sel.value;
+}
+function pdRender(){
+  var body = document.getElementById('pdBody');
+  var hideGc = document.getElementById('pdHideGc').checked;
+  var auto = document.getElementById('pdAuto').checked;
+  if (!pdBuf.length){
+    body.innerHTML = '<tr><td colspan="8" style="padding:18px;text-align:center;color:var(--text-3)">'
+      + 'PD 报文只在 CC 线上有数据时上报（插拔 / 协商瞬间），稳定供电时为空属正常。</td></tr>';
+    document.getElementById('pdTotal').textContent = '';
+    return;
+  }
+  var rows = pdBuf.filter(function(x){
+    if (hideGc && x.type === 'GoodCRC') return false;
+    if (window.__pdFilterVal && window.__pdFilterVal !== 'all' && x.type !== window.__pdFilterVal) return false;
+    return true;
+  });
+  document.getElementById('pdTotal').textContent =
+    '显示 ' + rows.length + ' / 缓冲 ' + pdBuf.length + ' 条'
+    + (hideGc ? '（GoodCRC 已隐藏）' : '');
+  body.innerHTML = rows.map(function(x, i){
+    return '<tr class="'+pdCls(x.type)+'">'
+      + '<td class="bar">'+(i+1)+'</td>'
+      + '<td style="color:var(--text-3)">'+esc(x.t||'')+'</td>'
+      + '<td>'+(x.sop===1?'SOP':(x.sop===2?"SOP'":"SOP''"))+'</td>'
+      + '<td class="'+pdCls(x.type)+'" style="font-weight:500">'+esc(x.type)+'</td>'
+      + '<td><span class="tag '+(x.dir===1?'rx':'tx')+'">'+(x.dir===1?'RX':'TX')+'</span></td>'
+      + '<td>'+x.n+'</td>'
+      + '<td style="color:var(--text-2)">'+esc(x.vi||'')+'</td>'
+      + '<td title="'+esc(x.hex)+'" style="color:var(--text-2)">'+esc(x.note||'')+'</td></tr>';
+  }).join('');
+  // 只有已停在底部时才跟随最新行；用户上翻时绝不强拽回去
+  if (auto){
+    var w = document.querySelector('.pdwrap');
+    if (w){
+      var atBottom = (w.scrollHeight - w.scrollTop - w.clientHeight) < 24;
+      if (atBottom) w.scrollTop = w.scrollHeight;
+    }
+  }
+}
+document.getElementById('pdPause').onclick = function(){
+  pdPaused = !pdPaused;
+  this.textContent = pdPaused ? '▶ 继续展示' : '⏸ 暂停展示';
+  this.classList.toggle('on', pdPaused);
+  if (!pdPaused) pdRender();
+};
+document.getElementById('pdClear').onclick = function(){ pdBuf = []; pdRender(); };
+document.getElementById('pdHideGc').onchange = pdRender;
+document.getElementById('pdAuto').onchange = pdRender;
+document.getElementById('pdFilter').onchange = function(){ window.__pdFilterVal = this.value; pdRender(); };
+
+function renderPd(recent){
+  if (pdPaused) return;                 // 暂停只冻结展示，底层数据照常更新
+  pdBuf = recent || [];
+  pdFilterOptions();
+  pdRender();
+}
+
+/* ---------------- 轮询 / SSE ---------------- */
+function poll(){
+  fetch(API + '/api/state').then(function(r){return r.json();}).then(function(s){
+    var st = document.getElementById('st');
+    st.className = 'chip ' + (s.connected ? 'ok' : 'no');
+    st.lastElementChild.textContent = s.connected ? '已连接' : '未连接';
+    document.getElementById('devTxt').textContent = s.device || '';
+    document.getElementById('devMac').textContent = s.device || '--';
+    document.getElementById('v').textContent = s.volt.toFixed(3);
+    document.getElementById('a').textContent = Math.abs(s.amp).toFixed(3);
+    var d = document.getElementById('adir');
+    d.textContent = Math.abs(s.amp) < 0.001 ? '' : (s.amp < 0 ? '反向' : '正向');
+    document.getElementById('w').textContent = s.watt.toFixed(3);
+    document.getElementById('tm').textContent = s.elapsed || '--';
+    document.getElementById('tm2').textContent = '· 计时 ' + (s.elapsed||'--') + ' 能量 ' + (s.energy||0);
+    document.getElementById('en').textContent = s.energy || 0;
+    document.getElementById('pdCount').textContent = s.pd_count || 0;
+    document.getElementById('pdCount2').textContent = s.pd_count ? ('· 共 ' + s.pd_count + ' 条') : '';
+    document.getElementById('navPd').textContent = s.pd_count ? s.pd_count : '';
+    lastRdo = s.rdo || null;
+    document.getElementById('pdo').innerHTML = renderPdo(s.pdos);
+    document.getElementById('emk').innerHTML = renderEmk(s.emarker);
+    renderPd(s.pd_recent);
+    document.getElementById('expInfo').textContent = '已记录 ' + (s.pd_count||0) + ' 条 PD 报文';
+    var pts = s.sess_points || 0, sec = s.sess_sec || 0;
+    document.getElementById('expInfoS').textContent =
+      '已记录 ' + pts.toLocaleString() + ' 点 · ' + (sec >= 60
+        ? Math.floor(sec/60) + ' 分 ' + Math.round(sec%60) + ' 秒'
+        : Math.round(sec) + ' 秒');
+    window.__rdoAge = s.rdo_age;
+    document.getElementById('sess').innerHTML =
+      s.connected ? ('设备 <b class="mono">'+esc(s.device)+'</b> · 采样率 '
+        + (s.rate==='1'?'1SPS':s.rate==='2'?'10SPS':'20SPS'))
+                  : '等待设备连接…';
+    document.getElementById('errbar').style.display = 'none';
+  }).catch(function(e){
+    var b = document.getElementById('errbar');
+    b.style.display = 'block';
+    b.textContent = '未连上本地服务 ' + (API || '127.0.0.1:31416')
+      + ' —— 请确认程序正在运行（错误：' + (e && e.message ? e.message : e) + '）';
+  });
+}
+setInterval(poll, 250); poll();
+
+var es = new EventSource(API + '/events');
+es.onmessage = function(ev){
+  var d;
+  try { d = JSON.parse(ev.data); } catch(e) { return; }
+  if (d.t === 'samples' && d.pts) {
+    pushSamples(d.pts);
+    var last = d.pts[d.pts.length-1], v = last[0]/1000, a = Math.abs(last[1])/1000;
+    SPV.push(v); SPA.push(a); SPW.push(v*a);
+    if (SPV.length > 400) SPV.shift();
+    if (SPA.length > 400) SPA.shift();
+    if (SPW.length > 400) SPW.shift();
+  }
+};
+
+/* ---------------- 控件 ---------------- */
+document.querySelectorAll('#rateSeg button').forEach(function(b){
+  b.onclick = function(){
+    document.querySelectorAll('#rateSeg button').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    fetch(API + '/api/rate', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({rate: b.dataset.r})});
+  };
+});
+function exportData(kind, defaultName){
+  // 有原生窗口时：走 Win32"另存为"对话框，选完路径由 Python 直接落盘
+  // （WebView2 里 <a download> 弹不出系统保存框，这是它的限制）
+  if (window.pywebview && window.pywebview.api){
+    window.pywebview.api.save_file_dialog(defaultName).then(function(path){
+      if (!path) return;                       // 用户点了取消
+      window.pywebview.api.export_to(path, kind).then(function(r){
+        if (r && r.ok) alert('已保存到：\n' + r.path);
+        else alert('保存失败：' + ((r && r.error) || '未知错误'));
+      }).catch(function(e){ alert('保存失败：' + e); });
+    }).catch(function(e){ alert('无法打开保存对话框：' + e); });
+    return;
+  }
+  // 浏览器模式兜底：blob 下载
+  fetch(API + '/api/export/' + kind + '.xlsx').then(function(r){
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.blob();
+  }).then(function(b){
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = defaultName;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 3000);
+  }).catch(function(e){ alert('导出失败：' + e.message); });
+}
+document.getElementById('btnExpS').onclick = function(){
+  exportData('samples', 'PowerZ_曲线数据_' + new Date().toISOString().slice(0,10) + '.xlsx');
+};
+document.getElementById('btnExpP').onclick = function(){
+  exportData('pd', 'PowerZ_PD报文_' + new Date().toISOString().slice(0,10) + '.xlsx');
+};
+document.getElementById('btnScan').onclick = function(){
+  fetch(API + '/api/scan').then(function(r){return r.json();}).then(function(r){
+    if (r.error) { alert(r.error); return; }
+    var msg = '扫描到设备：\n';
+    r.forEach(function(d){
+      var pz = (d.uuids||[]).some(function(u){return u.indexOf('0000af01')===0;});
+      msg += (pz ? '⚡ Power-Z  ' : '   ') + (d.name || '(无名)') + '\n     ' + d.address + '  rssi ' + d.rssi + '\n';
+    });
+    alert(msg);
+  }).catch(function(e){ alert('扫描失败: ' + e.message); });
+};
+
+/* ---------------- 缩放手柄（无边框窗口） ---------------- */
+(function(){
+  if (!window.pywebview) return;
+  ['n','s','e','w','ne','nw','se','sw'].forEach(function(d){
+    var el = document.createElement('div');
+    el.className = 'rsz ' + d;
+    el.addEventListener('mousedown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      // 同样用全屏覆盖层：松手必达，移除即自动释放捕获
+      var ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;z-index:200;background:transparent';
+      document.body.appendChild(ov);
+      try { ov.setPointerCapture(e.pointerId || 1); } catch(err) {}
+      // 全部用物理像素：screenX 与 win_pos/win_size 都是物理，
+      // 不能用 window.innerWidth（那是 CSS 逻辑像素，175% 缩放下差 1.75 倍）
+      var st = {x: e.screenX, y: e.screenY, w: 0, h: 0, wx: 0, wy: 0};
+      Promise.all([window.pywebview.api.win_pos(), window.pywebview.api.win_size()])
+        .then(function(r){ st.wx = r[0][0]; st.wy = r[0][1]; st.w = r[1][0]; st.h = r[1][1]; });
+      ov.addEventListener('mousemove', function(ev){
+        var dx = ev.screenX - st.x, dy = ev.screenY - st.y;
+        var w = st.w, hh = st.h, x = st.wx, y = st.wy;
+        if (d.indexOf('e') >= 0) w = st.w + dx;
+        if (d.indexOf('s') >= 0) hh = st.h + dy;
+        if (d.indexOf('w') >= 0) { w = st.w - dx; x = st.wx + dx; }
+        if (d.indexOf('n') >= 0) { hh = st.h - dy; y = st.wy + dy; }
+        window.pywebview.api.win_resize(w, hh);
+        window.pywebview.api.win_move(x, y);
+      });
+      function up(){
+        try { if (ov && ov.parentNode) ov.parentNode.removeChild(ov); } catch(e) {}
+      }
+      ov.addEventListener('mouseup', up);
+      window.addEventListener('blur', up);
+    });
+    document.body.appendChild(el);
+  });
+})();
+
+/* ---------------- 自绘标题栏：拖动交给 Windows 原生 ---------------- */
+(function(){
+  function init(){
+    if (!window.pywebview || !window.pywebview.api) return;
+    document.getElementById('tbar').style.display = 'flex';
+    var bar = document.getElementById('tbar');
+    var SCR = null;
+    window.pywebview.api.screen_rect().then(function(r){ SCR = r; });
+
+    bar.addEventListener('mousedown', function(e){
+      if (e.target.tagName === 'BUTTON') return;
+      e.preventDefault();
+      // 拖拽期间盖一层透明膜，防止误触下面的按钮/输入框
+      var ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;z-index:200;background:transparent';
+      document.body.appendChild(ov);
+      // 交给系统做模态拖动：跟手、自带贴靠（顶部最大化/左右半屏）、
+      // 松手由系统保证。该调用阻塞到拖动结束，返回后撤掉覆盖层。
+      window.pywebview.api.win_drag_start().then(function(){
+        if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+      }).catch(function(){
+        if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+      });
+    });
+  }
+  if (window.pywebview) init(); else window.addEventListener('pywebviewready', init);
+})();
+</script>
+</body>
+</html>
