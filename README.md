@@ -1,6 +1,8 @@
-# 充电头网 Power-Z C240 Pro · PC 上位机
+# C240Pro · 上位机（Windows / Android）
 
 通过蓝牙 BLE 读取 Power-Z C240 Pro 测试仪的实时电压 / 电流 / 功率采样，解析 PD 协议报文与线缆 eMarker 信息，并支持导出 XLSX 数据。
+
+**提供 Windows 与 Android 两个版本，共用同一套界面与解析逻辑。**
 
 协议依据微信小程序反编译 + 蓝牙 HCI 抓包**双向验证**得出。本软件只读取设备上报的数据，不写设备、不改固件。
 
@@ -25,7 +27,7 @@
 切换后曲线推进速度与导出数据密度同步变化。
 
 ### PD 协议分析
-- **充电器 PDO 全档位**解码：Fixed / APDO(PPS) 分别列出电压电流
+- **充电器 PDO 全档位**解码：Fixed / APDO(PPS) / **APDO(SPR AVS 两段电压)**
 - **下游实际请求（RDO）**：按 PDO 真实类型解位——PPS 请求用 20mV/50mA 单位，Fixed 请求用 10mA 单位
   - 类型未知时**不猜测**，同时给出两种解并明确标注「类型未确认」
   - 显示「收到于 X 秒前」，区分协商历史与当前实时工作点
@@ -34,6 +36,20 @@
   - 暂停展示（只冻结表格，底层采集继续，恢复后自动补齐）
   - 清空显示 / 自动滚动（仅在已停底部时跟随，可手动上翻）/ 隐藏 GoodCRC / 按消息类型过滤
   - 消息类型着色、V/I 列、Note 解码列、原始 hex 提示
+
+### SPR AVS 两段显示
+
+一个 AVS 档位按规范拆成两段（15V 是分段点）：
+
+```
+7   APDO(SPR AVS)
+    ↳  9.0 – 15.0 V   2.66 A
+    ↳ 15.0 – 20.0 V   2.00 A
+```
+
+- 电压上限来自 VDO，下限为 AVS 规范的 9V
+- 两段电流由功率反推：`P = maxV × I_high`，低段 `min(3A, P/15)`
+- 已用 **40W / 70W 两只真实充电器交叉验证**：40W → 2.66/2.00 A，70W → 3.00/3.00 A（低段被 3A 钳位）
 
 ### 数据导出
 - 曲线数据与 PD 报文**分两个文件**
@@ -55,15 +71,49 @@
 
 前往 [Releases](https://github.com/12-yuba/PowerZ-C240Pro-Host/releases) 下载：
 
-| 文件 | 说明 |
-|---|---|
-| `PowerZ-Host.exe` | **单文件版**（约 41 MB），方便拷贝分发，首次启动需解压约 3~6 秒 |
+| 文件 | 平台 | 大小 | 说明 |
+|---|---|---|---|
+| `C240Pro.exe` | Windows | 41 MB | 电脑版，单文件、免安装，双击即用 |
+| `C240Pro.apk` | Android 8.0+ | 2.9 MB | 手机版，直接安装 |
 
 固定下载直链（始终指向最新版）：
 
 ```
-https://github.com/12-yuba/PowerZ-C240Pro-Host/releases/latest/download/PowerZ-Host.exe
+https://github.com/12-yuba/PowerZ-C240Pro-Host/releases/latest/download/C240Pro.exe
+https://github.com/12-yuba/PowerZ-C240Pro-Host/releases/latest/download/C240Pro.apk
 ```
+
+---
+
+## Android 版
+
+### 安装
+
+1. 下载 `C240Pro.apk`
+2. 允许安装未知来源应用
+3. 打开后自动扫描并连接 C240 Pro
+
+### 要求
+
+| 项 | 要求 |
+|---|---|
+| 系统 | Android 8.0 及以上 |
+| 蓝牙 | 手机需支持 BLE |
+| 权限 | 首次启动申请蓝牙扫描/连接权限（Android 12 以下为定位权限） |
+
+### 与 Windows 版的差异
+
+| 功能 | Windows | Android |
+|---|---|---|
+| 实时曲线 / PD 分析 / 报文表格 | ✅ | ✅ 完全一致 |
+| 数据导出 | Win32 原生「另存为」 | 系统「创建文档」对话框（SAF） |
+| 启动速度 | 约 3~6 秒（单文件需解压） | 约 1 秒 |
+| 后台运行 | 窗口在即运行 | 息屏后可能被系统挂起，回来会自动重连 |
+
+### 注意
+
+- 手机版与电脑版**不要同时连接同一台 C240 Pro**（设备是单连接）
+- 换充电器后需重新插拔一次，能力表才会刷新（软件**不缓存**能力表，避免显示上一只头的旧数据）
 
 ---
 
@@ -108,7 +158,9 @@ A：exe 未做代码签名。点「更多信息」→「仍要运行」即可。
 
 | 层 | 技术 |
 |---|---|
-| 蓝牙与协议解析 | Python（bleak，走 WinRT） |
+| Windows 蓝牙 | Python + bleak（走 WinRT） |
+| Android 蓝牙 | Kotlin + BluetoothGatt |
+| Android 界面 | WebView + 本地 NanoHTTPD 服务（复用同一套 index.html） |
 | 本地服务 | Python 标准库 `http.server` + SSE 推送 |
 | 界面 | HTML / CSS / JavaScript + ECharts |
 | 窗口 | pywebview（Win32 窗口 + WebView2 内核） |
